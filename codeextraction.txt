@@ -1,0 +1,129 @@
+import requests
+import urllib.parse
+import json
+import os
+import time
+
+# Obtention du TOKEN
+
+def token_api_PE():
+    url_token = "https://entreprise.pole-emploi.fr/connexion/oauth2/access_token?realm=%2Fpartenaire&Content-Type=application/x-www-form-urlencoded"
+
+    data_token = {
+        'grant_type': 'client_credentials',
+        'client_id': 'PAR_boussolemetiers_b3d2590333a24f720168513e73c97654865ce9fecac349ac9e6f0082405c54a2',
+        'client_secret': '0cc929096d6b36e038046917f28c2d97a81b045c05ca4b6b3f997a4f42579047',
+        'scope': 'api_explorateurmetiersv1 explojob api_matchviasoftskillsv1 api_rome-fiches-metiersv1 nomenclatureRome api_offresdemploiv2 o2dsoffre'
+    }
+
+    response_token = requests.post(url_token, data=data_token)
+
+    if response_token.status_code == 200:
+        response_data_token = response_token.json()
+        access_token = response_data_token['access_token']
+        print(access_token)
+    else:
+        print("La requête a échoué avec le code :", response_token.status_code)
+        exit()
+    return access_token
+
+
+# Appel de l'API Explorateur Métier V1
+
+def Explo_Metier(libelle_Rq, typerq):
+    base_url = "https://api.pole-emploi.io/partenaire/explorateurmetiers/v1/explorateurmetiers"
+
+    params = {
+        'libelle': libelle_Rq,
+        'nombre': '20',
+        'type': typerq
+    }
+
+    url = base_url + '?' + urllib.parse.urlencode(params)
+
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        print("Requête reçue")
+    else:
+        print("La requête a échoué avec le code :", response.status_code)
+        exit()
+    return response.json()
+
+
+# Programme principal
+access_token = token_api_PE()
+
+typerq = "metier"
+
+file_path = "E:\Databird\projet\ListeMetiersTOPI.txt"
+
+nb_file = 0
+with open(file_path, 'r', encoding='utf-8') as file:
+    lines = file.readlines()
+
+for line in lines:
+    line = line.strip()
+    print(line)
+
+    resultat = Explo_Metier(line, typerq)
+
+    output_folder = r"E:\Databird\projet"
+    filename = f"M_{line}.json"
+    output_file = os.path.join(output_folder, filename)
+
+    with open(output_file, 'w', encoding='utf-8') as output:
+        json.dump(resultat, output, ensure_ascii=False)
+        print(f"Fichier {filename} créé")
+
+    time.sleep(0.5)
+    nb_file = nb_file + 1
+
+print(f"Nombre de fichiers créés : {nb_file}")
+
+
+#############################################################################
+
+!pip install pandas
+import pandas as pd
+import glob
+import openpyxl
+
+# Chemin du dossier contenant les fichiers JSON
+json_folder = r"E:\Databird\projet"
+
+# Chemin du fichier Excel de sortie
+output_excel = r"E:\Databird\projet\resultats.xlsx"
+
+# Liste de tous les fichiers JSON dans le dossier
+json_files = glob.glob(json_folder + "\\*.json")
+
+# Création d'une liste pour stocker les DataFrames temporaires
+data_frames = []
+
+# Parcourir tous les fichiers JSON
+for json_file in json_files:
+    with open(json_file, 'r', encoding='utf-8') as file:
+        json_data = json.load(file)
+        
+        if isinstance(json_data, list) and len(json_data) > 0:
+            for item in json_data:
+                libelle = item.get('libelle', '')
+                code_rome = item.get('codeROME', '')
+                
+                # Créer un DataFrame temporaire avec les informations extraites
+                temp_df = pd.DataFrame({'Libellé': [libelle], 'Code ROME': [code_rome]})
+                
+                # Ajouter le DataFrame temporaire à la liste
+                data_frames.append(temp_df)
+# Concaténer tous les DataFrames de la liste en un seul DataFrame
+data = pd.concat(data_frames, ignore_index=True)
+
+# Enregistrer le DataFrame dans un fichier Excel
+data.to_excel(output_excel, index=False)
+
+print("Le fichier Excel a été créé avec succès.")
